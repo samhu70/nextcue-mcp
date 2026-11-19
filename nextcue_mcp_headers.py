@@ -29,7 +29,7 @@ $path = $env:NEXTCUE_PERMISSION_PATH
 """
     if protect:
         script += """
-$directory = Test-Path -LiteralPath $path -PathType Container
+$directory = [System.IO.Directory]::Exists($path)
 if ($directory) { $acl = [System.Security.AccessControl.DirectorySecurity]::new() }
 else { $acl = [System.Security.AccessControl.FileSecurity]::new() }
 $acl.SetOwner($user)
@@ -39,11 +39,13 @@ foreach ($sid in @($user, $system)) {
     else { $rule = [System.Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', 'Allow') }
     $acl.AddAccessRule($rule)
 }
-Set-Acl -LiteralPath $path -AclObject $acl
+if ($directory) { [System.IO.Directory]::SetAccessControl($path, $acl) }
+else { [System.IO.File]::SetAccessControl($path, $acl) }
 """
     else:
         script += """
-$acl = Get-Acl -LiteralPath $path
+if ([System.IO.Directory]::Exists($path)) { $acl = [System.IO.Directory]::GetAccessControl($path) }
+else { $acl = [System.IO.File]::GetAccessControl($path) }
 $owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
 if ($owner -ne $user.Value -or -not $acl.AreAccessRulesProtected) { exit 1 }
 foreach ($rule in $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
