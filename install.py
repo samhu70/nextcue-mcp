@@ -127,13 +127,14 @@ def install(url, token, config, token_file):
 
 
 def agent_setup(args, config):
-    if not args.url:
+    current = tomllib.loads((read_private_target(config) or b"").decode()).get("mcp_servers", {}).get("nextcue", {})
+    address = args.url or current.get("url")
+    if not address:
         print(json.dumps({"status": "input_required", "field": "url", "sensitive": False}))
         return 2
-    url = endpoint(args.url)
+    url = endpoint(address)
     token_source = Path(args.token_file).expanduser() if args.token_file else headers.TOKEN_FILE
     if not args.token_file:
-        current = tomllib.loads((read_private_target(config) or b"").decode()).get("mcp_servers", {}).get("nextcue", {})
         if not current.get("url") or endpoint(current["url"]) != url or not token_source.exists():
             print(json.dumps({"status": "input_required", "field": "token", "sensitive": True,
                               "handoff": "local_hidden_input", "resume_with": "--token-file <private-file>"}))

@@ -17,7 +17,7 @@ Run `install.py` with the detected interpreter and `--agent`. It returns JSON wi
 {"status":"input_required","field":"url","sensitive":false}
 ```
 
-Ask the user for their NextCue installation's HTTPS address. Then rerun with `--agent --url https://their-installation.example`. Do not guess that the public product website is their private instance.
+An existing NextCue address is detected automatically. If an address is missing, ask the user for their installation's HTTPS address, then rerun with `--agent --url https://their-installation.example`. Do not guess that the public product website is their private instance.
 
 The installer reuses an existing private token only when the existing NextCue connection has the same instance URL. Otherwise it returns:
 

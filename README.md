@@ -1,6 +1,6 @@
 # NextCue MCP client connection kit
 
-Connect a local Codex client to **your existing NextCue installation**. The setup wizard asks for your installation address and personal token, then configures the connection for you. The MCP server continues to run inside NextCue at `/mcp`.
+Connect a local Codex client to **your existing NextCue installation**. Your Agent detects the existing connection, asks only for missing information and configures it automatically. The MCP server continues to run inside NextCue at `/mcp`.
 
 [Download the latest connection kit](https://github.com/samhu70/nextcue-mcp/releases/latest) · [Website setup guide](https://nextcue.fivexing.com.au/support/mcp)
 
@@ -20,7 +20,7 @@ python install.py --agent
 
 The client code supports macOS, Windows and Linux with Python 3.11+. The Agent detects or provisions the interpreter; the user does not need to set it up manually. A local Codex client supporting HTTP header helpers is required. The Agent's own permissions and ability to offer protected credential input still apply.
 
-The installer adds `/mcp` to your instance address, installs the helper in your Codex configuration directory and updates only the `nextcue` entry. It preserves other connections and existing NextCue tool restrictions. A private token is reused automatically only for an existing connection to the same instance.
+The installer detects an existing address and adds `/mcp` to your instance address, installs the helper in your Codex configuration directory and updates only the `nextcue` entry. It preserves other connections and existing NextCue tool restrictions. A private token is reused automatically only for an existing connection to the same instance.
 
 The token stays in a private local credential file, outside `config.toml`. It is not printed by the installer. Programs running as your operating-system account can read it; this is not a system keychain. One NextCue token is stored per operating-system account. Connecting to another instance or replacing the token updates that saved token.
 

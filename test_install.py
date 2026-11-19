@@ -154,7 +154,8 @@ example = true
             source, token = root / "private-token", root / "credentials/token"
             install.atomic_write(source, TOKEN.encode())
             for extra in (["--token-file", str(source)], []):
-                with patch.object(install.headers, "TOKEN_FILE", token), patch("sys.argv", ["install", "--agent", "--url", "https://nextcue.example.com"] + extra), patch("sys.stdout", io.StringIO()) as output:
+                args = ["install", "--agent"] + (["--url", "https://nextcue.example.com"] + extra if extra else [])
+                with patch.object(install.headers, "TOKEN_FILE", token), patch("sys.argv", args), patch("sys.stdout", io.StringIO()) as output:
                     self.assertEqual(0, install.main(root / "config.toml"))
                 self.assertEqual("configured", json.loads(output.getvalue())["status"])
                 self.assertNotIn(TOKEN, output.getvalue())
