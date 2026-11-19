@@ -1,56 +1,76 @@
 # NextCue MCP client connection kit
 
-Connect a local MCP client to **your existing NextCue installation**. This kit includes a Python token helper and a Codex configuration template. The MCP server runs inside NextCue at `/mcp`; this download does not install a server or contain your workspace data.
+Connect a local Codex client to **your existing NextCue installation**. The setup wizard asks for your installation address and personal token, then configures the connection for you. The MCP server continues to run inside NextCue at `/mcp`.
 
-[Download the latest connection kit](https://github.com/samhu70/nextcue-mcp/releases/latest) · [NextCue website](https://nextcue.fivexing.com.au/)
+[Download the latest connection kit](https://github.com/samhu70/nextcue-mcp/releases/latest) · [Website setup guide](https://nextcue.fivexing.com.au/support/mcp)
 
-## Requirements
+## Quick setup
 
-- An existing NextCue installation reachable over trusted HTTPS, including any private network or VPN access required by its administrator.
-- Your own NextCue account and a personal MCP connection token from that installation.
-- For the included helper: macOS or Linux, Python 3.8 or newer, and a local Codex client supporting `http_headers_helper`. The helper uses POSIX file permissions and is not supported on native Windows.
+You need **macOS or Linux, Python 3.11 or newer, and a local Codex client** that supports HTTP header helpers. There are no Python package dependencies. Native Windows and remote-executor setup are not supported by this release.
 
-There are no Python package dependencies. Other clients can connect directly if they support Streamable HTTP and a securely configured Bearer header.
-
-## Set up Codex
-
-1. Download and extract the release ZIP into a permanent directory. If you move it later, update the helper path in your client configuration. You can verify the download with `shasum -a 256 -c SHA256SUMS` (macOS) or `sha256sum -c SHA256SUMS` (Linux), with both release assets in the same directory.
-2. Sign in to **your NextCue installation**, then open **Account → Manage MCP connection tokens** (`/Account/McpTokens`). Create a token. The public NextCue website does not issue your instance's tokens.
-3. From the extracted directory, save it through the hidden terminal prompt:
+1. Sign in to **your NextCue installation**. Open **Account → Manage MCP connection tokens** (`/Account/McpTokens`) and create a personal token. Keep your installation's HTTPS address handy. Connect to its VPN or private network if your administrator requires one.
+2. Download and extract the release ZIP. Open a terminal in that folder and run:
 
    ```sh
-   python3 nextcue_mcp_headers.py --save
+   python3 install.py
    ```
 
-   The token is not echoed. It is stored at `~/.codex/credentials/nextcue-token`, with directory permissions `700` and file permissions `600`. This is a local file, not an operating-system keychain; programs running as your account can read it. Saving replaces the token previously stored by this helper. The kit supports one NextCue token per operating-system account.
+   Enter your NextCue HTTPS address and paste the token into the hidden prompt. You do not need to find Python paths or edit configuration files.
+3. Reload the MCP connection or reopen Codex. Ask it to call `get_context` and check your account and workspaces. Use `search_tasks` to check access without creating a task.
 
-4. Use `command -v python3` to find your Python executable. Edit `codex.toml.example`, replacing the example instance URL and both absolute paths. Merge the resulting `[mcp_servers.nextcue]` table into `~/.codex/config.toml`. If that table already exists, update it instead of adding a duplicate; preserve your other client settings.
-5. Reload your client's MCP connection, or reopen the client if needed. Check that `get_context` returns your expected account and workspaces. You can then use `search_tasks` to check access without creating data. Tool availability depends on the installed NextCue server version and your workspace permissions.
+The wizard automatically adds `/mcp` to your instance address, installs the helper in your Codex configuration directory and updates only the `nextcue` entry in `config.toml`. Your other connections and existing NextCue tool restrictions are preserved. You can delete the extracted download folder afterwards.
 
-The helper prints the Bearer header when called without `--save`; that mode is for the MCP client. Do not run it manually and paste its output into chat, issues, or logs.
+The token is stored at `~/.codex/credentials/nextcue-token` with file permissions `600` and directory permissions `700`. It is never put in the configuration file or printed by the installer. This is a local file, not a system keychain; programs running as your operating-system account can read it. The helper supports one NextCue token per operating-system account. Running setup again replaces that token.
 
-## Configuration template
+## Configuration backup and compatibility
 
-See [codex.toml.example](codex.toml.example). The example paths are placeholders, and `nextcue.example.com` must be replaced with your own installation's HTTPS hostname.
+Before updating an existing configuration, setup saves a private backup named `config.toml.nextcue-backup-<id>` beside it. Writes are atomic; if a later write fails, setup attempts to restore files already changed. Keep backups private because your existing configuration may contain other credentials.
 
-Codex's header helper is for connections made from the local environment. It does not run on a remote executor. Remove an old explicit Bearer or OAuth credential for this entry if it overrides the helper. See the [official Codex MCP configuration documentation](https://developers.openai.com/codex/mcp/).
+Setup uses `~/.codex/config.toml`, or the configuration directory selected by an existing `CODEX_HOME` setting. Symbolic-link targets and unusual inline MCP table layouts are rejected before changes. Use the manual steps below if your configuration needs that layout. Old explicit Authorization headers and Bearer environment-variable settings for this `nextcue` entry are replaced by the token helper; other headers and tool permissions remain.
 
-## Other MCP clients
-
-Configure Streamable HTTP with your installation's URL, such as `https://nextcue.example.com/mcp`, and set `Authorization: Bearer <your-personal-token>` using the client's private credential facility. The included Python helper is only useful if that client supports commands that return header JSON. This package does not add OAuth support to NextCue's personal-token endpoint.
+To undo setup, close Codex and restore the backup configuration. If you previously had a NextCue connection, running setup again replaced its local token; create/save the appropriate token for the restored installation before reconnecting.
 
 ## Renew or revoke access
 
-NextCue personal MCP tokens currently expire after 30 days. Create a replacement in the same installation, run the `--save` command again, and reload the connection. You can revoke tokens from the NextCue token management page. Explicitly signing out of NextCue invalidates existing MCP tokens; closing a browser alone does not.
-
-For connection errors, first check the installation URL, network access and trusted HTTPS certificate. For authentication errors, check that the token belongs to that installation and has not expired or been revoked. Do not disable certificate verification. Tokens from one NextCue installation do not authenticate to another.
-
-## Tests and support
-
-Run the isolated tests without reading or changing your real credentials:
+Personal MCP tokens currently expire after 30 days. Create a replacement in the same installation and run `python3 install.py` again. You can also update just the token using the permanently installed helper:
 
 ```sh
-python3 -m unittest -v test_nextcue_mcp_headers
+python3 ~/.codex/nextcue/nextcue_mcp_headers.py --save
 ```
 
-For product support, contact [nextcue@fivexing.com.au](mailto:nextcue@fivexing.com.au). Keep tokens, passwords, private keys and workspace data out of public issues.
+If you use a custom Codex configuration directory, use its `nextcue/nextcue_mcp_headers.py` file instead. Reload the client connection afterwards. Revoke unwanted tokens from the NextCue token page. Explicitly signing out of NextCue invalidates existing MCP tokens; closing a browser alone does not.
+
+## Troubleshooting
+
+- Check the instance address, private network/VPN access and trusted HTTPS certificate. Do not disable certificate verification. The public NextCue website is not your private instance.
+- Check that the token belongs to this installation and has not expired or been revoked. Tokens cannot be transferred between installations.
+- Check your Python version with `python3 --version`; the wizard needs Python 3.11+. Run setup in an interactive terminal so its token prompt can stay hidden.
+- If setup refuses a custom configuration layout, use the manual steps below. Do not remove your existing configuration to force installation.
+- The wizard configures files; a successful connection still requires your NextCue server and network to be available. Tool availability depends on the server version and your permissions.
+
+<details>
+<summary>Manual setup and other MCP clients</summary>
+
+The helper alone still supports Python 3.8+ on macOS/Linux. From the extracted folder, run `python3 nextcue_mcp_headers.py --save` and paste the token into its hidden prompt.
+
+Edit [codex.toml.example](codex.toml.example), replacing the instance URL and both absolute paths. Merge the table into `~/.codex/config.toml`; update an existing table instead of adding a duplicate. Preserve your other settings and keep the extracted helper in a permanent location. Reload the MCP connection.
+
+The helper prints the Bearer header when called without `--save`; that mode is for the MCP client. Do not run it manually and paste its output into chats, issues or logs.
+
+Other clients can use Streamable HTTP at `https://your-instance.example/mcp` and their own private `Authorization: Bearer <your-personal-token>` setting. The helper only works with local clients that support header commands. This kit does not add OAuth login.
+
+See the [official Codex MCP configuration documentation](https://developers.openai.com/codex/mcp/).
+
+</details>
+
+## Verify downloads and run tests
+
+Download `SHA256SUMS` beside the ZIP, then use `shasum -a 256 -c SHA256SUMS` on macOS, or `sha256sum -c SHA256SUMS` on Linux.
+
+The tests use temporary files and synthetic tokens, without changing your real credentials:
+
+```sh
+python3 -m unittest -v test_install test_nextcue_mcp_headers
+```
+
+For support, contact [nextcue@fivexing.com.au](mailto:nextcue@fivexing.com.au). Keep tokens, passwords, private keys and workspace data out of public issues.
