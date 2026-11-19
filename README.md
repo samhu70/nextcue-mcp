@@ -4,23 +4,38 @@ Connect a local Codex client to **your existing NextCue installation**. The setu
 
 [Download the latest connection kit](https://github.com/samhu70/nextcue-mcp/releases/latest) · [Website setup guide](https://nextcue.fivexing.com.au/support/mcp)
 
-## Quick setup
+## Ask your Agent to install
 
-You need **macOS or Linux, Python 3.11 or newer, and a local Codex client** that supports HTTP header helpers. There are no Python package dependencies. Native Windows and remote-executor setup are not supported by this release.
+Send your Agent this request:
 
-1. Sign in to **your NextCue installation**. Open **Account → Manage MCP connection tokens** (`/Account/McpTokens`) and create a personal token. Keep your installation's HTTPS address handy. Connect to its VPN or private network if your administrator requires one.
-2. Download and extract the release ZIP. Open a terminal in that folder and run:
+> Install NextCue MCP from https://github.com/samhu70/nextcue-mcp. Prepare the environment and configure my local client automatically. Ask me for my NextCue address if it is missing. Use protected local input for the personal token; do not ask me to paste it into chat. Preserve my other MCP settings and verify the connection afterwards.
 
-   ```sh
-   python3 install.py
-   ```
+The Agent prepares the runtime and downloads in the background. You provide your private instance address and, when needed, a personal token through a local hidden prompt. The Agent handles the commands, paths, configuration and checks.
 
-   Enter your NextCue HTTPS address and paste the token into the hidden prompt. You do not need to find Python paths or edit configuration files.
-3. Reload the MCP connection or reopen Codex. Ask it to call `get_context` and check your account and workspaces. Use `search_tasks` to check access without creating a task.
+**Agents: follow [INSTALL_WITH_AGENT.md](INSTALL_WITH_AGENT.md).** The installer supports structured, noninteractive requests for missing information:
 
-The wizard automatically adds `/mcp` to your instance address, installs the helper in your Codex configuration directory and updates only the `nextcue` entry in `config.toml`. Your other connections and existing NextCue tool restrictions are preserved. You can delete the extracted download folder afterwards.
+```sh
+python install.py --agent
+```
 
-The token is stored at `~/.codex/credentials/nextcue-token` with file permissions `600` and directory permissions `700`. It is never put in the configuration file or printed by the installer. This is a local file, not a system keychain; programs running as your operating-system account can read it. The helper supports one NextCue token per operating-system account. Running setup again replaces that token.
+The client code supports macOS, Windows and Linux with Python 3.11+. The Agent detects or provisions the interpreter; the user does not need to set it up manually. A local Codex client supporting HTTP header helpers is required. The Agent's own permissions and ability to offer protected credential input still apply.
+
+The installer adds `/mcp` to your instance address, installs the helper in your Codex configuration directory and updates only the `nextcue` entry. It preserves other connections and existing NextCue tool restrictions. A private token is reused automatically only for an existing connection to the same instance.
+
+The token stays in a private local credential file, outside `config.toml`. It is not printed by the installer. Programs running as your operating-system account can read it; this is not a system keychain. One NextCue token is stored per operating-system account. Connecting to another instance or replacing the token updates that saved token.
+
+<details>
+<summary>Advanced: run the interactive installer yourself</summary>
+
+Sign in to your own NextCue instance, create a personal MCP token under **Account → Manage MCP connection tokens**, then run this in the extracted kit:
+
+```sh
+python install.py
+```
+
+Use the Python 3.11+ interpreter available on your system. Enter your HTTPS address and paste the token into the hidden prompt. Reload the MCP connection afterwards. You can delete the extracted folder after setup.
+
+</details>
 
 ## Configuration backup and compatibility
 
@@ -32,7 +47,7 @@ To undo setup, close Codex and restore the backup configuration. If you previous
 
 ## Renew or revoke access
 
-Personal MCP tokens currently expire after 30 days. Create a replacement in the same installation and run `python3 install.py` again. You can also update just the token using the permanently installed helper:
+Personal MCP tokens currently expire after 30 days. Ask your Agent to renew the connection using a replacement token from the same installation and the protected local input flow. You can also update just the token using the permanently installed helper:
 
 ```sh
 python3 ~/.codex/nextcue/nextcue_mcp_headers.py --save
@@ -51,7 +66,7 @@ If you use a custom Codex configuration directory, use its `nextcue/nextcue_mcp_
 <details>
 <summary>Manual setup and other MCP clients</summary>
 
-The helper alone still supports Python 3.8+ on macOS/Linux. From the extracted folder, run `python3 nextcue_mcp_headers.py --save` and paste the token into its hidden prompt.
+The helper alone supports Python 3.8+; Windows uses its built-in PowerShell for private-file permissions. From the extracted folder, run `python3 nextcue_mcp_headers.py --save` and paste the token into its hidden prompt.
 
 Edit [codex.toml.example](codex.toml.example), replacing the instance URL and both absolute paths. Merge the table into `~/.codex/config.toml`; update an existing table instead of adding a duplicate. Preserve your other settings and keep the extracted helper in a permanent location. Reload the MCP connection.
 

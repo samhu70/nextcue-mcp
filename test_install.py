@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 from pathlib import Path
 import shlex
 import tempfile
@@ -69,16 +70,17 @@ example = true
             config.write_text(original)
             backup = install.install("https://nextcue.example.com", TOKEN, config, token_file)
             self.assertEqual(original, backup.read_text())
-            self.assertEqual(0o600, backup.stat().st_mode & 0o777)
+            install.headers.check_private_file(backup)
             self.assertEqual(TOKEN, token_file.read_text().strip())
-            self.assertEqual(0o600, token_file.stat().st_mode & 0o777)
-            self.assertEqual(0o700, token_file.parent.stat().st_mode & 0o777)
+            install.headers.check_private_file(token_file)
+            if os.name != "nt":
+                self.assertEqual(0o700, token_file.parent.stat().st_mode & 0o777)
             self.assertNotIn(TOKEN, config.read_text())
             connection = tomllib.loads(config.read_text())["mcp_servers"]["nextcue"]
             self.assertEqual("https://nextcue.example.com/mcp", connection["url"])
-            command = shlex.split(connection["http_headers_helper"])
-            self.assertEqual(str((root / "nextcue/nextcue_mcp_headers.py").resolve()), command[1])
-            self.assertEqual(Path(install.headers.__file__).read_bytes(), Path(command[1]).read_bytes())
+            helper = (root / "nextcue/nextcue_mcp_headers.py").resolve()
+            self.assertIn(str(helper), connection["http_headers_helper"])
+            self.assertEqual(Path(install.headers.__file__).read_bytes(), helper.read_bytes())
 
     def test_fresh_install_and_invalid_token_without_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -88,7 +90,7 @@ example = true
                 install.install("https://nextcue.example.com", "invalid", config, token_file)
             self.assertEqual([], list(root.iterdir()))
             self.assertIsNone(install.install("https://nextcue.example.com", TOKEN, config, token_file))
-            self.assertEqual(0o600, config.stat().st_mode & 0o777)
+            install.headers.check_private_file(config)
 
     def test_symlink_config_is_rejected_without_changing_token(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -125,14 +127,49 @@ example = true
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config, token_file = root / "config.toml", root / "credentials/token"
-            with patch.object(install.os.environ, "get", return_value=str(root)), patch.object(install.headers, "TOKEN_FILE", token_file), patch("sys.stdin.isatty", return_value=True), patch("builtins.input", return_value="https://nextcue.example.com") as address, patch.object(install.getpass, "getpass", return_value=TOKEN) as token, patch("sys.stdout", io.StringIO()) as output:
-                self.assertEqual(0, install.main())
+            with patch("sys.argv", ["install"]), patch.object(install.headers, "TOKEN_FILE", token_file), patch("sys.stdin.isatty", return_value=True), patch("builtins.input", return_value="https://nextcue.example.com") as address, patch.object(install.getpass, "getpass", return_value=TOKEN) as token, patch("sys.stdout", io.StringIO()) as output:
+                self.assertEqual(0, install.main(root / "config.toml"))
             address.assert_called_once()
             token.assert_called_once()
             self.assertNotIn(TOKEN, output.getvalue())
             with patch.object(install.headers, "TOKEN_FILE", token_file), patch("sys.argv", ["helper"]), patch("sys.stdout", io.StringIO()) as header_output:
                 self.assertEqual(0, install.headers.main())
             self.assertEqual({"Authorization": "Bearer " + TOKEN}, json.loads(header_output.getvalue()))
+
+    def test_agent_requests_missing_input_without_writes_or_prompts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for args, field in ((["install", "--agent"], "url"), (["install", "--agent", "--url", "https://nextcue.example.com"], "token")):
+                with patch.object(install.headers, "TOKEN_FILE", root / "credentials/token"), patch("sys.argv", args), patch("builtins.input", side_effect=AssertionError("No prompts")), patch.object(install.getpass, "getpass", side_effect=AssertionError("No prompts")), patch("sys.stdout", io.StringIO()) as output:
+                    self.assertEqual(2, install.main(root / "config.toml"))
+                self.assertEqual(field, json.loads(output.getvalue())["field"])
+            self.assertEqual([], list(root.iterdir()))
+
+    def test_agent_private_file_setup_and_same_instance_reuse(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, token = root / "private-token", root / "credentials/token"
+            install.atomic_write(source, TOKEN.encode())
+            for extra in (["--token-file", str(source)], []):
+                with patch.object(install.headers, "TOKEN_FILE", token), patch("sys.argv", ["install", "--agent", "--url", "https://nextcue.example.com"] + extra), patch("sys.stdout", io.StringIO()) as output:
+                    self.assertEqual(0, install.main(root / "config.toml"))
+                self.assertEqual("configured", json.loads(output.getvalue())["status"])
+                self.assertNotIn(TOKEN, output.getvalue())
+            with patch.object(install.headers, "TOKEN_FILE", token), patch("sys.argv", ["install", "--agent", "--url", "https://another.example.com"]), patch("sys.stdout", io.StringIO()) as output:
+                self.assertEqual(2, install.main(root / "config.toml"))
+            self.assertEqual("token", json.loads(output.getvalue())["field"])
+
+    def test_agent_errors_do_not_expose_invalid_token(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "private-token"
+            invalid = "private-but-invalid-secret"
+            install.atomic_write(source, invalid.encode())
+            with patch.object(install.headers, "TOKEN_FILE", root / "credentials/token"), patch("sys.argv", ["install", "--agent", "--url", "https://nextcue.example.com", "--token-file", str(source)]), patch("sys.stdout", io.StringIO()) as output:
+                self.assertEqual(1, install.main(root / "config.toml"))
+            self.assertEqual("error", json.loads(output.getvalue())["status"])
+            self.assertNotIn(invalid, output.getvalue())
+            self.assertFalse((root / "config.toml").exists())
 
 
 if __name__ == "__main__":

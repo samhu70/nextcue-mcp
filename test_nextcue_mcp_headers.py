@@ -3,6 +3,7 @@
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -50,12 +51,15 @@ class HeaderHelperTests(unittest.TestCase):
             with patch("sys.argv", ["helper", "--save"]), patch.object(headers.getpass, "getpass", return_value=fake), patch("sys.stdout", output):
                 self.assertEqual(0, headers.main())
             self.assertNotIn(fake, output.getvalue())
-            self.assertEqual(0o600, headers.TOKEN_FILE.stat().st_mode & 0o777)
+            headers.check_private_file(headers.TOKEN_FILE)
             output = io.StringIO()
             with patch("sys.argv", ["helper"]), patch("sys.stdout", output):
                 self.assertEqual(0, headers.main())
             self.assertEqual({"Authorization": "Bearer " + fake}, json.loads(output.getvalue()))
-            headers.TOKEN_FILE.chmod(0o644)
+            if os.name == "nt":
+                headers.subprocess.run(["icacls", str(headers.TOKEN_FILE), "/grant", "*S-1-1-0:(R)"], check=True, stdout=headers.subprocess.DEVNULL, stderr=headers.subprocess.DEVNULL)
+            else:
+                headers.TOKEN_FILE.chmod(0o644)
             with patch("sys.argv", ["helper"]), patch("sys.stderr", io.StringIO()), patch("sys.stdout", io.StringIO()) as output:
                 self.assertEqual(1, headers.main())
             self.assertEqual("", output.getvalue())
