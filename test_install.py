@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import subprocess
 import tempfile
 import tomllib
 import unittest
@@ -81,6 +82,8 @@ example = true
             helper = (root / "nextcue/nextcue_mcp_headers.py").resolve()
             self.assertIn(str(helper), connection["http_headers_helper"])
             self.assertEqual(Path(install.headers.__file__).read_bytes(), helper.read_bytes())
+            check = subprocess.run(connection["http_headers_helper"] + " --help", shell=True, capture_output=True, text=True, timeout=30, check=True)
+            self.assertIn("--save", check.stdout)
 
     def test_fresh_install_and_invalid_token_without_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -16,6 +16,20 @@ spec.loader.exec_module(headers)
 
 
 class HeaderHelperTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows ACL test")
+    def test_windows_private_acl_round_trip(self):
+        run = headers.subprocess.run
+        def checked_run(*args, **kwargs):
+            kwargs["stderr"] = headers.subprocess.PIPE
+            result = run(*args, **kwargs)
+            if result.returncode:
+                self.fail(result.stderr.decode(errors="replace"))
+            return result
+        with tempfile.TemporaryDirectory() as directory, patch.object(headers.subprocess, "run", side_effect=checked_run):
+            path = Path(directory) / "private-file"
+            headers.atomic_write(path, b"synthetic-data")
+            headers.check_private_file(path)
+
     def test_missing_file_fails_without_header_output(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(headers, "TOKEN_FILE", Path(folder) / "missing"):
             with patch("sys.argv", ["helper"]), patch("sys.stderr", io.StringIO()), patch("sys.stdout", io.StringIO()) as output:
