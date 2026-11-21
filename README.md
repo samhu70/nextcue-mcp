@@ -4,6 +4,10 @@ Connect a local Codex client to **your existing NextCue installation**. Your Age
 
 [Download the latest connection kit](https://github.com/samhu70/nextcue-mcp/releases/latest) · [Website setup guide](https://nextcue.fivexing.com.au/support/mcp)
 
+## New business capabilities
+
+Connection kit **v0.4.0** supports NextCue business interface **2.0.0** with 44 server tools, including service bookings, customer profiles, repeated internal duties and shifts. Upgrade the NextCue instance as well, reload the connection and inspect `get_context`; older servers keep their existing tools. Existing tool allowlists are preserved. See [capabilities and safe workflow guide](MCP_CAPABILITIES.md).
+
 ## Ask your Agent to install
 
 Send your Agent this request:
