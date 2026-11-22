@@ -1,6 +1,6 @@
-# Merge this table into ~/.codex/config.toml; do not replace the entire file.
-# Replace the hostname and both absolute paths before enabling the connection.
+# Keep connection.json and its token file private. Use absolute paths.
+# Merge this table into your existing Codex configuration.
 [mcp_servers.nextcue]
-url = "https://nextcue.example.com/mcp"
-http_headers_helper = '"/absolute/path/to/python3" "/absolute/path/to/nextcue-mcp/nextcue_mcp_headers.py"'
+command = "/absolute/path/to/python3"
+args = ["/absolute/path/to/nextcue_mcp_server.py", "--config", "/absolute/path/to/connection.json"]
 enabled = true

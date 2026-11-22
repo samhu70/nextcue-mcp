@@ -1,6 +1,6 @@
 # NextCue business interface 2.0.0
 
-Client connection kit **v0.4.0** documents the new business tools. The HTTP transport and private-token helper are unchanged. Your **NextCue instance must also be upgraded** to a release containing business interface 2.0.0 (first supplied as `20261122-1-preview.1`). Installing this kit alone cannot add server capabilities. Older instances remain usable with their existing tools.
+Local MCP server **v0.5.0** provides these tool definitions on the user’s computer and calls the instance HTTPS JSON API. It requires instance API v1 (`20261122-2-preview.1` or newer). The private-token helper remains for protected credential entry. Your **NextCue instance must also be upgraded** to a release containing business interface 2.0.0 (first supplied as `20261122-1-preview.1`). Installing the local MCP server alone cannot add missing instance API operations. Older instances remain usable with their existing tools.
 
 After upgrading your instance, reload the MCP connection and call `get_context`. The new server returns `mcpVersion: "2.0.0"` and exposes **44 tools**: the previous 21 plus 23 business tools. This is a NextCue business contract version, not an MCP protocol version. Missing `mcpVersion` means an older server; discover and use only its available tools.
 
@@ -70,8 +70,10 @@ Read `get_duty_shift_slot(workspaceId, templateId, date)` before assigning. Pass
 
 ## Safe writes and retries
 
-New business tools use service-level version checks, **without the requestId replay receipts used by ordinary tasks and account records**. Keep new booking/event/template IDs stable. After a timeout or `conflict`, read the current object and history before deciding what to do. Do not generate a new ID, increment a version or repeat a recommendation automatically: the first action may already have committed. These writes are not advertised as idempotent.
+New business tools use service-level version checks, **without the requestId replay receipts used by ordinary tasks and account records**. Keep new booking/event/template IDs stable. After a timeout or `conflict`, read the current object and history before deciding what to do. Do not generate a new ID, increment a version or repeat a recommendation automatically: the first action may already have committed. These writes are not advertised as idempotent, and the local server never retries them automatically.
 
 New business errors include `invalid`, `disabled`, `forbidden`, `not_found`, `conflict` and `temporarily_busy`. Existing task/record errors and requestId rules are unchanged.
+
+The local server advertises the intersection of its own tool manifest and the instance API capabilities. Non-object results, such as duty history arrays, are returned as JSON text without structuredContent; other results include both text and an object structuredContent.
 
 The new tools do not send invitations, manage login accounts or roles, toggle workspace features, authorize external calendars, pay bills or send notifications. Continue those supported management flows in the Web app.

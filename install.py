@@ -21,18 +21,22 @@ except ImportError:
     sys.exit("NextCue setup needs Python 3.11 or newer. Update Python, then run this file again.")
 
 import nextcue_mcp_headers as headers
+import nextcue_mcp_server as local
 
 
 def endpoint(value):
-    value = value.strip()
-    parsed = urlsplit(value)
-    if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
-            or parsed.password is not None or parsed.query or parsed.fragment
-            or parsed.path not in ("", "/", "/mcp", "/mcp/")
-            or any(c.isspace() or ord(c) < 32 for c in value) or parsed.netloc.endswith(":")):
-        raise ValueError("Enter your installation's HTTPS address, such as https://nextcue.example.com.")
-    parsed.port  # Validate a supplied port before changing any files.
-    return urlunsplit(("https", parsed.netloc, "/mcp", "", ""))
+    return local.api_url(value)
+
+
+def current_connection(current):
+    if current.get("url"):
+        return {"url": endpoint(current["url"]), "tokenFile": str(headers.TOKEN_FILE),
+                "headers": {k: v for k, v in current.get("http_headers", {}).items() if k.lower() != "authorization"},
+                "envHeaders": {k: v for k, v in current.get("env_http_headers", {}).items() if k.lower() != "authorization"}}
+    args = current.get("args", [])
+    if len(args) == 3 and Path(args[0]).name == "nextcue_mcp_server.py" and args[1] == "--config":
+        return local.read_connection(Path(args[2]))
+    return {}
 
 
 def toml_value(value):
@@ -49,15 +53,13 @@ def toml_value(value):
     raise ValueError("An existing NextCue setting needs manual editing; no files have been changed.")
 
 
-def configured_text(original, url, helper):
+def configured_text(original, command, arguments):
     before = tomllib.loads(original)
     expected = copy.deepcopy(before)
     connection = expected.setdefault("mcp_servers", {}).setdefault("nextcue", {})
-    connection.update(url=url, http_headers_helper=helper, enabled=True)
-    connection.pop("bearer_token_env_var", None)
-    for key in ("http_headers", "env_http_headers"):
-        if key in connection:
-            connection[key] = {name: value for name, value in connection[key].items() if name.lower() != "authorization"}
+    for key in ("url", "http_headers_helper", "http_headers", "env_http_headers", "bearer_token_env_var"):
+        connection.pop(key, None)
+    connection.update(command=command, args=arguments, enabled=True)
     lines, kept, omit = original.splitlines(keepends=True), [], False
     # shortcut: edit standard server tables; unsupported inline layouts fail validation before any write.
     for line in lines:
@@ -93,14 +95,21 @@ def install(url, token, config, token_file):
     url = endpoint(url)
     if not re.fullmatch(r"nqc_[0-9a-f]{64}", token):
         raise ValueError("Invalid token. Copy the complete personal MCP token from your NextCue account.")
-    helper = config.parent / "nextcue" / "nextcue_mcp_headers.py"
-    originals = {path: read_private_target(path) for path in (config, token_file, helper)}
+    directory = config.parent / "nextcue"
+    helper = directory / "nextcue_mcp_headers.py"
+    server = directory / "nextcue_mcp_server.py"
+    manifest = directory / "tools.json"
+    connection_file = directory / "connection.json"
+    originals = {path: read_private_target(path) for path in (config, token_file, helper, server, manifest, connection_file)}
     original_config = originals[config] or b""
-    executable = sys.executable
-    helper_command = (f'"{executable}" "{helper.resolve()}"' if os.name == "nt"
-                      else shlex.join([executable, str(helper.resolve())]))
-    updated = configured_text(original_config.decode("utf-8"), url, helper_command).encode("utf-8")
-    helper_bytes = Path(headers.__file__).read_bytes()
+    current = tomllib.loads(original_config.decode("utf-8")).get("mcp_servers", {}).get("nextcue", {})
+    previous = current_connection(current)
+    connection = local.validate_connection({"url": url, "tokenFile": str(token_file.resolve()),
+                    "headers": previous.get("headers", {}), "envHeaders": previous.get("envHeaders", {})})
+    updated = configured_text(original_config.decode("utf-8"), sys.executable,
+                              [str(server.resolve()), "--config", str(connection_file.resolve())]).encode("utf-8")
+    writes = [(path, Path(__file__).with_name(path.name).read_bytes()) for path in (helper, server, manifest)]
+    writes += [(token_file, (token + "\n").encode()), (connection_file, (json.dumps(connection, ensure_ascii=False) + "\n").encode()), (config, updated)]
     backup = None
     if originals[config] is not None:
         backup = config.with_name("config.toml.nextcue-backup-" + uuid.uuid4().hex)
@@ -111,11 +120,13 @@ def install(url, token, config, token_file):
             raise ValueError("Your configuration changed during setup. Run the installer again.")
         token_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         headers.restrict_permissions(token_file.parent)
-        for path, data in ((helper, helper_bytes), (token_file, (token + "\n").encode()), (config, updated)):
+        for path, data in writes:
             if read_private_target(path) != originals[path]:
                 raise ValueError("A setup file changed during installation. Run the installer again.")
             atomic_write(path, data)
             changed.append(path)
+            if path == connection_file:
+                local.InstanceApi(connection).capabilities()
     except BaseException:
         for path in reversed(changed):
             if originals[path] is None:
@@ -128,14 +139,15 @@ def install(url, token, config, token_file):
 
 def agent_setup(args, config):
     current = tomllib.loads((read_private_target(config) or b"").decode()).get("mcp_servers", {}).get("nextcue", {})
-    address = args.url or current.get("url")
+    previous = current_connection(current)
+    address = args.url or previous.get("url")
     if not address:
         print(json.dumps({"status": "input_required", "field": "url", "sensitive": False}))
         return 2
     url = endpoint(address)
-    token_source = Path(args.token_file).expanduser() if args.token_file else headers.TOKEN_FILE
+    token_source = Path(args.token_file).expanduser() if args.token_file else Path(previous.get("tokenFile", str(headers.TOKEN_FILE)))
     if not args.token_file:
-        if not current.get("url") or endpoint(current["url"]) != url or not token_source.exists():
+        if not previous.get("url") or endpoint(previous["url"]) != url or not token_source.exists():
             print(json.dumps({"status": "input_required", "field": "token", "sensitive": True,
                               "handoff": "local_hidden_input", "resume_with": "--token-file <private-file>"}))
             return 2
@@ -143,7 +155,8 @@ def agent_setup(args, config):
     token = token_source.read_text().strip()
     backup = install(url, token, config, headers.TOKEN_FILE)
     print(json.dumps({"status": "configured", "url": url, "backup": str(backup) if backup else None,
-                      "next": "Reload the MCP connection, then verify get_context and search_tasks."}))
+                      "transport": "stdio", "requiresApiVersion": 1,
+                      "next": "Ensure the instance supports API v1, reload the local MCP connection, then verify get_context and search_tasks."}))
     return 0
 
 
@@ -167,10 +180,17 @@ def main(config=None):
         token = getpass.getpass("Personal MCP token (input hidden): ").strip()
         backup = install(url, token, config, headers.TOKEN_FILE)
         print("NextCue is configured. Reload the MCP connection or reopen Codex, then ask it to call get_context.")
-        print("You can delete the extracted download folder; the helper is installed in your Codex directory.")
+        print("You can delete the extracted download folder; the local server is installed in your Codex directory.")
         if backup:
             print("Previous configuration backup: " + str(backup))
         return 0
+    except local.ApiFailure as error:
+        message = error.body["error"]
+        if args.agent:
+            print(json.dumps({"status": "error", "code": message["code"], "message": message["message"], "configurationChanged": False}))
+        else:
+            print("NextCue setup: " + message["message"] + " Existing configuration was preserved.", file=sys.stderr)
+        return 1
     except (OSError, ValueError, TypeError, AttributeError, EOFError, KeyboardInterrupt, subprocess.SubprocessError):
         if args.agent:
             print(json.dumps({"status": "error", "message": "Check the HTTPS address, private token file and configuration layout. No token has been printed."}))

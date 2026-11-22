@@ -1,95 +1,72 @@
-# NextCue MCP client connection kit
+# NextCue local MCP server
 
-Connect a local Codex client to **your existing NextCue installation**. Your Agent detects the existing connection, asks only for missing information and configures it automatically. The MCP server continues to run inside NextCue at `/mcp`.
+Connect your AI client to **your existing NextCue installation** through a local MCP server. The client launches this Python process over stdio; it calls your instance's authenticated HTTPS JSON API. Tool definitions run locally, while business rules, authorization and data stay on your DELL, NAS or other NextCue host.
 
-[Download the latest connection kit](https://github.com/samhu70/nextcue-mcp/releases/latest) · [Website setup guide](https://nextcue.fivexing.com.au/support/mcp)
+[Download v0.5.0](https://github.com/samhu70/nextcue-mcp/releases/tag/v0.5.0) · [Agent setup](INSTALL_WITH_AGENT.md) · [44-tool workflow guide](MCP_CAPABILITIES.md)
 
-## New business capabilities
+```text
+AI client → local NextCue MCP process → HTTPS /api/v1 → your NextCue instance
+```
 
-Connection kit **v0.4.0** supports NextCue business interface **2.0.0** with 44 server tools, including service bookings, customer profiles, repeated internal duties and shifts. Upgrade the NextCue instance as well, reload the connection and inspect `get_context`; older servers keep their existing tools. Existing tool allowlists are preserved. See [capabilities and safe workflow guide](MCP_CAPABILITIES.md).
+**Upgrade the instance first:** v0.5.0 requires NextCue instance API v1, first supplied by `20261122-2-preview.1` (Preview15). Installation checks authenticated API capabilities before switching configuration. An older or unreachable instance leaves the existing configuration/token intact. Existing remote `/mcp` connections continue working on compatible instances; v0.4.0 remains available for those connections.
 
 ## Ask your Agent to install
 
-Send your Agent this request:
-
 > Install NextCue MCP from https://github.com/samhu70/nextcue-mcp. Prepare the environment and configure my local client automatically. Ask me for my NextCue address if it is missing. Use protected local input for the personal token; do not ask me to paste it into chat. Preserve my other MCP settings and verify the connection afterwards.
 
-The Agent prepares the runtime and downloads in the background. You provide your private instance address and, when needed, a personal token through a local hidden prompt. The Agent handles the commands, paths, configuration and checks.
+**Agents: follow [INSTALL_WITH_AGENT.md](INSTALL_WITH_AGENT.md).** The Agent provisions Python 3.11+ when needed and runs `python install.py --agent`. Missing address or protected token input is requested through structured JSON. Setup supports macOS, Windows and Linux and configures a local Codex client. Other MCP clients can launch the same stdio process using their own command/args settings.
 
-**Agents: follow [INSTALL_WITH_AGENT.md](INSTALL_WITH_AGENT.md).** The installer supports structured, noninteractive requests for missing information:
+The installer detects an existing remote or local connection, reuses a private token only for the same instance, installs the server/manifest/credential helper permanently, verifies API v1 and replaces only the `nextcue` transport. Other connections, tool allowlists/denylists and per-tool approval settings are preserved. Custom transport headers are moved into private connection configuration. Unsupported layouts, symbolic-link targets and Windows junctions are rejected. No local listening port, Docker or additional Python package is needed.
 
-```sh
-python install.py --agent
+The installer backs up an existing `config.toml` as `config.toml.nextcue-backup-<id>`, uses atomic file writes and restores changed files if a later step or API preflight fails. Configuration success and verified business access are reported separately; setup never creates a test task.
+
+## Private connection configuration
+
+Setup installs `nextcue_mcp_server.py`, `tools.json`, `nextcue_mcp_headers.py` and private `connection.json` under the selected Codex configuration directory's `nextcue/` folder. The generated `config.toml` uses `command` and `args`, without a URL or plaintext token. [codex.toml.example](codex.toml.example) shows the format.
+
+A private `connection.json` contains:
+
+```json
+{
+  "url": "https://your-instance.example/api/v1",
+  "tokenFile": "/absolute/path/to/private/nextcue-token",
+  "headers": {},
+  "envHeaders": {}
+}
 ```
 
-The client code supports macOS, Windows and Linux with Python 3.11+. The Agent detects or provisions the interpreter; the user does not need to set it up manually. A local Codex client supporting HTTP header helpers is required. The Agent's own permissions and ability to offer protected credential input still apply.
+The token stays in a separate private file. macOS/Linux use 600 file permissions; Windows permits the current user and SYSTEM only. These are filesystem protections, not a system keychain: programs running as your account can read the files. Configuration, logs and chat must never contain the token itself. HTTPS certificates are verified and redirects are refused, preventing a redirect from forwarding credentials elsewhere.
 
-The installer detects an existing address and adds `/mcp` to your instance address, installs the helper in your Codex configuration directory and updates only the `nextcue` entry. It preserves other connections and existing NextCue tool restrictions. A private token is reused automatically only for an existing connection to the same instance.
+Setup manages one `nextcue` connection and one saved token per operating-system account. For manually configured multiple instances, use distinct protected connection/token files and separate MCP entries, each launching this server with its own `--config` path. Tokens belong to the instance that issued them.
 
-The token stays in a private local credential file, outside `config.toml`. It is not printed by the installer. Programs running as your operating-system account can read it; this is not a system keychain. One NextCue token is stored per operating-system account. Connecting to another instance or replacing the token updates that saved token.
+## Verify or renew
 
-<details>
-<summary>Advanced: run the interactive installer yourself</summary>
-
-Sign in to your own NextCue instance, create a personal MCP token under **Account → Manage MCP connection tokens**, then run this in the extracted kit:
+With the Python interpreter used during setup:
 
 ```sh
-python install.py
+python /absolute/path/to/nextcue_mcp_server.py --config /absolute/path/to/connection.json --check
 ```
 
-Use the Python 3.11+ interpreter available on your system. Enter your HTTPS address and paste the token into the hidden prompt. Reload the MCP connection afterwards. You can delete the extracted folder after setup.
+This checks API v1 and authenticated `get_context` without changing business data. Reload the MCP connection, confirm your expected account/workspace, and perform a read-only query. Only locally known tools supported by the instance are advertised; the instance rechecks every operation's permissions.
 
-</details>
+Personal tokens currently expire after 30 days. Ask your Agent to renew using the same installer and protected input flow, or use the installed `nextcue_mcp_headers.py --save` helper for the default credential location. Explicit sign-out revokes existing tokens; closing a browser alone does not. A token cannot be transferred to a different installation.
 
-## Configuration backup and compatibility
+To undo a successful migration, close the client and restore the private configuration backup. If a token was replaced, restore the appropriate protected credential as well. Keep the local server files when the restored configuration still references them.
 
-Before updating an existing configuration, setup saves a private backup named `config.toml.nextcue-backup-<id>` beside it. Writes are atomic; if a later write fails, setup attempts to restore files already changed. Keep backups private because your existing configuration may contain other credentials.
+## Transport and failure behavior
 
-Setup uses `~/.codex/config.toml`, or the configuration directory selected by an existing `CODEX_HOME` setting. Symbolic-link targets and unusual inline MCP table layouts are rejected before changes. Use the manual steps below if your configuration needs that layout. Old explicit Authorization headers and Bearer environment-variable settings for this `nextcue` entry are replaced by the token helper; other headers and tool permissions remain.
+The server supports the MCP initialize lifecycle for `2025-11-25`, `2025-06-18` and `2025-03-26`, using newline-delimited JSON-RPC over stdio. stdout contains protocol messages only. It offers tools, without resources, prompts, background tasks or HTTP proxy fallback. Requests execute serially. The process exits on stdin EOF.
 
-To undo setup, close Codex and restore the backup configuration. If you previously had a NextCue connection, running setup again replaced its local token; create/save the appropriate token for the restored installation before reconnecting.
+Business calls use `POST /api/v1/operations/<name>` and return the same task/record/duty contracts documented in [MCP_CAPABILITIES.md](MCP_CAPABILITIES.md). Local tool descriptions can be upgraded independently of the instance; genuinely new business operations still need a corresponding instance API upgrade. Non-object results remain JSON text without an object-only `structuredContent` field.
 
-## Renew or revoke access
+Writes are **never automatically retried**. After a timeout, broken response or version conflict, read the object/history before deciding another action; the first write may have committed. Ordinary task/record requestId rules remain, and the new business tools retain their existing version checks without replay receipts.
 
-Personal MCP tokens currently expire after 30 days. Ask your Agent to renew the connection using a replacement token from the same installation and the protected local input flow. You can also update just the token using the permanently installed helper:
+## Downloads and development tests
+
+Download the ZIP and `SHA256SUMS` from the same Release. Verify with `shasum -a 256 -c SHA256SUMS` on macOS or `sha256sum -c SHA256SUMS` on Linux. The ZIP contains source, tool definitions and guides, without tokens or instance data.
 
 ```sh
-python3 ~/.codex/nextcue/nextcue_mcp_headers.py --save
+python3 -m unittest -v test_install test_nextcue_mcp_headers test_nextcue_mcp_server
 ```
 
-If you use a custom Codex configuration directory, use its `nextcue/nextcue_mcp_headers.py` file instead. Reload the client connection afterwards. Revoke unwanted tokens from the NextCue token page. Explicitly signing out of NextCue invalidates existing MCP tokens; closing a browser alone does not.
-
-## Troubleshooting
-
-- Check the instance address, private network/VPN access and trusted HTTPS certificate. Do not disable certificate verification. The public NextCue website is not your private instance.
-- Check that the token belongs to this installation and has not expired or been revoked. Tokens cannot be transferred between installations.
-- Check your Python version with `python3 --version`; the wizard needs Python 3.11+. Run setup in an interactive terminal so its token prompt can stay hidden.
-- If setup refuses a custom configuration layout, use the manual steps below. Do not remove your existing configuration to force installation.
-- The wizard configures files; a successful connection still requires your NextCue server and network to be available. Tool availability depends on the server version and your permissions.
-
-<details>
-<summary>Manual setup and other MCP clients</summary>
-
-The helper alone supports Python 3.8+; Windows uses its built-in PowerShell for private-file permissions. From the extracted folder, run `python3 nextcue_mcp_headers.py --save` and paste the token into its hidden prompt.
-
-Edit [codex.toml.example](codex.toml.example), replacing the instance URL and both absolute paths. Merge the table into `~/.codex/config.toml`; update an existing table instead of adding a duplicate. Preserve your other settings and keep the extracted helper in a permanent location. Reload the MCP connection.
-
-The helper prints the Bearer header when called without `--save`; that mode is for the MCP client. Do not run it manually and paste its output into chats, issues or logs.
-
-Other clients can use Streamable HTTP at `https://your-instance.example/mcp` and their own private `Authorization: Bearer <your-personal-token>` setting. The helper only works with local clients that support header commands. This kit does not add OAuth login.
-
-See the [official Codex MCP configuration documentation](https://developers.openai.com/codex/mcp/).
-
-</details>
-
-## Verify downloads and run tests
-
-Download `SHA256SUMS` beside the ZIP, then use `shasum -a 256 -c SHA256SUMS` on macOS, or `sha256sum -c SHA256SUMS` on Linux.
-
-The tests use temporary files and synthetic tokens, without changing your real credentials:
-
-```sh
-python3 -m unittest -v test_install test_nextcue_mcp_headers
-```
-
-For support, contact [nextcue@fivexing.com.au](mailto:nextcue@fivexing.com.au). Keep tokens, passwords, private keys and workspace data out of public issues.
+Tests use temporary files and synthetic credentials, exercising stdio, HTTP failures, safe migration/rollback and Windows ACL protection. For support, contact [nextcue@fivexing.com.au](mailto:nextcue@fivexing.com.au).
