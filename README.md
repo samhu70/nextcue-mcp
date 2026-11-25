@@ -2,13 +2,19 @@
 
 Connect your AI client to **your existing NextCue installation** through a local MCP server. The client launches this Python process over stdio; it calls your instance's authenticated HTTPS JSON API. Tool definitions run locally, while business rules, authorization and data stay on your DELL, NAS or other NextCue host.
 
-[Download v0.5.0](https://github.com/samhu70/nextcue-mcp/releases/tag/v0.5.0) · [Agent setup](INSTALL_WITH_AGENT.md) · [44-tool workflow guide](MCP_CAPABILITIES.md)
+[Download v0.6.0](https://github.com/samhu70/nextcue-mcp/releases/tag/v0.6.0) · [Agent setup](INSTALL_WITH_AGENT.md) · [46-tool workflow guide](MCP_CAPABILITIES.md)
 
 ```text
 AI client → local NextCue MCP process → HTTPS /api/v1 → your NextCue instance
 ```
 
 **Upgrade the instance first:** v0.5.0 requires NextCue instance API v1, first supplied by `20261122-2-preview.1` (Preview15). Installation checks authenticated API capabilities before switching configuration. An older or unreachable instance leaves the existing configuration/token intact. Existing remote `/mcp` connections continue working on compatible instances; v0.4.0 remains available for those connections.
+
+## Administrator local backups
+
+v0.6.0 adds `request_local_backup` and `get_local_backup_status` for instances implementing business interface 2.1.0. The instance and its separately installed backup-capable updater must both be ready. Older API v1 instances keep their supported tools; upgrading this client alone does not add backup execution.
+
+An instance administrator can ask: “Back up this NextCue instance and confirm the result.” The Agent submits one request ID, then queries that same ID until it completes. Queued is not completion. The instance briefly pauses, saves database/original keys/deployment settings locally, and retains its three latest verified manual snapshots. There is no automatic backup schedule. Ordinary workspace owners/managers cannot operate whole-instance backups. No backup contents, paths, credentials or restore tools are exposed.
 
 ## Ask your Agent to install
 

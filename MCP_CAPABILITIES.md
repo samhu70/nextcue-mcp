@@ -1,4 +1,13 @@
-# NextCue business interface 2.0.0
+# NextCue MCP capabilities
+
+## Administrator local backups — client v0.6.0 / business interface 2.1.0
+
+Compatible instances advertise 46 tools. The two additions are `request_local_backup(requestId)` and `get_local_backup_status(requestId?)`. They require current instance administrator authority; a workspace Owner/Manager is not sufficient. The backend and separate backup-capable worker must both be installed. Capability discovery is authoritative for operation support, and every call rechecks authority.
+
+Only submit a backup when the user explicitly requests it. Generate and keep one UUID, submit once, then query the same ID. `queued`/`running` are progress, not completion; report success only for `requestState: "completed"`. During a short service pause, wait and read status after reconnection. After any timeout, query first and never automatically retry with a fresh ID. Existing queue/history makes the same ID idempotent; never reuse an old ID after its history has expired. `unavailable` is an unknown result, not proof the request never ran.
+
+Backups remain local, with no automatic schedule and the latest three verified manual snapshots retained. The worker may remove the oldest manual snapshot only after a new verified backup completes; upgrade recovery copies are separate. These tools cannot download archives, read credentials, change retention, restore data or install updates. Existing per-tool restrictions must not be widened automatically.
+
 
 Local MCP server **v0.5.0** provides these tool definitions on the user’s computer and calls the instance HTTPS JSON API. It requires instance API v1 (`20261122-2-preview.1` or newer). The private-token helper remains for protected credential entry. Your **NextCue instance must also be upgraded** to a release containing business interface 2.0.0 (first supplied as `20261122-1-preview.1`). Installing the local MCP server alone cannot add missing instance API operations. Older instances remain usable with their existing tools.
 

@@ -144,6 +144,27 @@ class ServerTests(unittest.TestCase):
             with self.assertRaises(local.ApiFailure):
                 local.InstanceApi(value, Opener(Response({"apiVersion": 2, "operations": []}))).capabilities()
 
+    def test_backup_tools_are_capability_gated_and_queued_is_not_completion(self):
+        class BackupApi:
+            def __init__(self): self.calls = []
+            def capabilities(self): return {"request_local_backup", "get_local_backup_status"}
+            def request(self, path, arguments):
+                self.calls.append((path, arguments))
+                return {"requestId": arguments["requestId"], "requestState": "queued", "automaticBackups": False, "keepLast": 3}, False
+        api = BackupApi()
+        server = local.Server(api)
+        server.initialized = True
+        tools = server.dispatch({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["tools"]
+        self.assertEqual(2, len(tools))
+        write = next(tool for tool in tools if tool["name"] == "request_local_backup")
+        self.assertFalse(write["annotations"]["readOnlyHint"])
+        self.assertTrue(write["annotations"]["destructiveHint"])
+        self.assertIn("queued is not completion", write["description"].replace("Acceptance/queued is not completion", "queued is not completion"))
+        identifier = "11111111-2222-4333-8444-555555555555"
+        result = server.dispatch({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "request_local_backup", "arguments": {"requestId": identifier}}})
+        self.assertEqual("queued", result["structuredContent"]["requestState"])
+        self.assertEqual([("/operations/request_local_backup", {"requestId": identifier})], api.calls)
+
     def test_handshake_notifications_ping_calls_and_eof_have_clean_stdio(self):
         messages = [
             {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}}},
@@ -158,7 +179,7 @@ class ServerTests(unittest.TestCase):
         local.serve(local.Server(FakeApi()), io.BytesIO(b"".join(json.dumps(message).encode() + b"\n" for message in messages)), output)
         responses = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertEqual([1, 2, 3, 4, 5, 6], [response["id"] for response in responses])
-        self.assertEqual("0.5.0", responses[0]["result"]["serverInfo"]["version"])
+        self.assertEqual("0.6.0", responses[0]["result"]["serverInfo"]["version"])
         self.assertEqual("test-user", responses[3]["result"]["structuredContent"]["userId"])
         self.assertTrue(responses[4]["result"]["isError"])
         self.assertNotIn("structuredContent", responses[5]["result"])

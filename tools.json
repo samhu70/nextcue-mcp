@@ -706,6 +706,29 @@
     }
   },
   {
+    "name": "get_local_backup_status",
+    "description": "Instance administrators only. Read sanitized local backup history, worker availability and progress for an optional requestId. Use after requesting a backup or after timeout; queued/running/unavailable are not success. Service may briefly be unreachable during a backup; wait and query the same ID. This does not trigger a backup, download files or restore data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "get_service_record",
     "description": "Read an authorized platform account or subscription, including its current version and optional parent account. Password fields contain password manager references only; never request or retrieve actual credentials.",
     "inputSchema": {
@@ -1172,6 +1195,29 @@
       "additionalProperties": false
     },
     "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "request_local_backup",
+    "description": "Instance administrators only. Explicitly request one whole-instance local backup; briefly pauses the instance and retains only the latest three verified manual snapshots. Call only when the user requests a backup. Supply one fresh requestId, preserve it, then poll get_local_backup_status with that ID. Acceptance/queued is not completion; only a completed record is success. Never automatically retry or use a new ID after timeout. Reusing the same ID while its history remains is idempotent. No automatic schedule, remote copy, file download, restore or system update is performed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": true,
       "openWorldHint": false
