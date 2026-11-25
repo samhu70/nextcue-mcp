@@ -159,7 +159,7 @@ class ServerTests(unittest.TestCase):
         write = next(tool for tool in tools if tool["name"] == "request_local_backup")
         self.assertFalse(write["annotations"]["readOnlyHint"])
         self.assertTrue(write["annotations"]["destructiveHint"])
-        self.assertIn("queued is not completion", write["description"].replace("Acceptance/queued is not completion", "queued is not completion"))
+        self.assertIn("queued is not completion", write["description"].lower())
         identifier = "11111111-2222-4333-8444-555555555555"
         result = server.dispatch({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "request_local_backup", "arguments": {"requestId": identifier}}})
         self.assertEqual("queued", result["structuredContent"]["requestState"])
@@ -179,7 +179,7 @@ class ServerTests(unittest.TestCase):
         local.serve(local.Server(FakeApi()), io.BytesIO(b"".join(json.dumps(message).encode() + b"\n" for message in messages)), output)
         responses = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertEqual([1, 2, 3, 4, 5, 6], [response["id"] for response in responses])
-        self.assertEqual("0.6.0", responses[0]["result"]["serverInfo"]["version"])
+        self.assertEqual("0.6.1", responses[0]["result"]["serverInfo"]["version"])
         self.assertEqual("test-user", responses[3]["result"]["structuredContent"]["userId"])
         self.assertTrue(responses[4]["result"]["isError"])
         self.assertNotIn("structuredContent", responses[5]["result"])

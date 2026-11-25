@@ -14,7 +14,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import nextcue_mcp_headers as credentials
 
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 PROTOCOLS = ("2025-11-25", "2025-06-18", "2025-03-26")
 MAX_MESSAGE = 1024 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024

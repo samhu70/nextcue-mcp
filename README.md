@@ -2,7 +2,7 @@
 
 Connect your AI client to **your existing NextCue installation** through a local MCP server. The client launches this Python process over stdio; it calls your instance's authenticated HTTPS JSON API. Tool definitions run locally, while business rules, authorization and data stay on your DELL, NAS or other NextCue host.
 
-[Download v0.6.0](https://github.com/samhu70/nextcue-mcp/releases/tag/v0.6.0) · [Agent setup](INSTALL_WITH_AGENT.md) · [46-tool workflow guide](MCP_CAPABILITIES.md)
+[Download v0.6.1](https://github.com/samhu70/nextcue-mcp/releases/tag/v0.6.1) · [Agent setup](INSTALL_WITH_AGENT.md) · [46-tool workflow guide](MCP_CAPABILITIES.md)
 
 ```text
 AI client → local NextCue MCP process → HTTPS /api/v1 → your NextCue instance
@@ -12,9 +12,9 @@ AI client → local NextCue MCP process → HTTPS /api/v1 → your NextCue insta
 
 ## Administrator local backups
 
-v0.6.0 adds `request_local_backup` and `get_local_backup_status` for instances implementing business interface 2.1.0. The instance and its separately installed backup-capable updater must both be ready. Older API v1 instances keep their supported tools; upgrading this client alone does not add backup execution.
+v0.6.0 adds `request_local_backup` and `get_local_backup_status` for instances implementing business interface 2.1.0. Preview23 (20261125-4-preview.1) integrates application-online backups into Web; it needs no separate backup worker or new deployment mount. Preview22 retains its earlier external-worker model. The instance reports its mode and coverage when available. Older API v1 instances keep their supported tools; upgrading this client alone does not add backup execution.
 
-An instance administrator can ask: “Back up this NextCue instance and confirm the result.” The Agent submits one request ID, then queries that same ID until it completes. Queued is not completion. The instance briefly pauses, saves database/original keys/deployment settings locally, and retains its three latest verified manual snapshots. There is no automatic backup schedule. Ordinary workspace owners/managers cannot operate whole-instance backups. No backup contents, paths, credentials or restore tools are exposed.
+An instance administrator can ask: “Back up this NextCue instance and confirm the result.” The Agent submits one request ID, then queries that same ID until it completes. Queued is not completion. Integrated backups keep the app running, save a consistent database/original keys/effective application configuration locally, and retain the three latest verified manual snapshots. Database writes may briefly wait; host Compose, external proxy/TLS files and other services are outside this application-backup scope. There is no automatic backup schedule. Ordinary workspace owners/managers cannot operate whole-instance backups. No backup contents, paths, credentials or restore tools are exposed.
 
 ## Ask your Agent to install
 
